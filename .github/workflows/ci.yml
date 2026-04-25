@@ -1,4 +1,4 @@
-name: Advanced CI Pipeline (Node.js Caller)
+name: Advanced CI Pipeline (Java/Maven Caller)
 
 permissions:
   contents: write
@@ -17,11 +17,11 @@ on:
         description: 'Docker Hub image name'
         required: false
         type: string
-      node_version:
-        description: 'Node.js version'
+      java_version:
+        description: 'Java version'
         required: false
         type: string
-        default: '20'
+        default: '17'
       working_directory:
         description: 'Working directory'
         required: false
@@ -30,7 +30,7 @@ on:
 
 env:
   IMAGE_NAME: ${{ github.event.inputs.image_name || vars.IMAGE_NAME || github.event.repository.name }}
-  NODE_VERSION: ${{ github.event.inputs.node_version || vars.NODE_VERSION || '20' }}
+  JAVA_VERSION: ${{ github.event.inputs.java_version || vars.JAVA_VERSION || '17' }}
   WORKING_DIRECTORY: ${{ github.event.inputs.working_directory || vars.WORKING_DIRECTORY || '.' }}
 
 jobs:
@@ -137,18 +137,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install dependencies
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: npm install
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'maven'
 
       - name: Run tests
         working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: npm test
+        run: mvn test
 
   # ─────────────────────────────────────────────
   # SONAR — Reusable SonarQube scan
@@ -158,10 +156,10 @@ jobs:
     needs: test
     uses: Googleeyy/ChapterOne-Reusable-Templates/.github/workflows/_sonar.yml@main
     with:
-      runtime: node
+      runtime: java
       working_directory: ${{ vars.WORKING_DIRECTORY || '.' }}
       sonar_project_key: ${{ vars.SONAR_PROJECT_KEY || '' }}
-      node_version: ${{ vars.NODE_VERSION || '20' }}
+      java_version: ${{ vars.JAVA_VERSION || '17' }}
     secrets: inherit
 
   # ─────────────────────────────────────────────
@@ -172,9 +170,9 @@ jobs:
     needs: test
     uses: Googleeyy/ChapterOne-Reusable-Templates/.github/workflows/_snyk.yml@main
     with:
-      runtime: node
+      runtime: java
       working_directory: ${{ vars.WORKING_DIRECTORY || '.' }}
-      node_version: ${{ vars.NODE_VERSION || '20' }}
+      java_version: ${{ vars.JAVA_VERSION || '17' }}
       severity_threshold: ${{ vars.SNYK_SEVERITY || 'high' }}
     secrets: inherit
 
@@ -186,14 +184,14 @@ jobs:
     needs: [prepare, sonar, snyk]
     uses: Googleeyy/ChapterOne-Reusable-Templates/.github/workflows/_build_trivy.yml@main
     with:
-      runtime: node
+      runtime: java
       image_name: ${{ needs.prepare.outputs.image_name }}
       tag: ${{ needs.prepare.outputs.tag }}
       is_production: ${{ needs.prepare.outputs.is_production }}
       working_directory: ${{ vars.WORKING_DIRECTORY || '.' }}
       docker_context: '.'
       dockerfile_path: 'Dockerfile'
-      node_version: ${{ vars.NODE_VERSION || '20' }}
+      java_version: ${{ vars.JAVA_VERSION || '17' }}
       trivy_severity: ${{ vars.TRIVY_SEVERITY || 'CRITICAL,HIGH' }}
       trivy_ignore_unfixed: ${{ vars.TRIVY_IGNORE_UNFIXED || 'false' }}
     secrets: inherit
